@@ -21,4 +21,4 @@ export const FIREBASE_SDK_VERSION = "11.0.2";
 
 // ホットペッパーグルメ検索の中継 URL(Google Apps Script のウェブアプリ。任意)
 //   API キーは中継スクリプト側に置いてあり、ここには書かない。空のままでも動きます。
-export const HOTPEPPER_PROXY_URL = "";
+export const HOTPEPPER_PROXY_URL = "https://script.google.com/macros/s/AKfycby22MCRBKGXn-0FcvGMuxgCL66b9gs5t5ULezcrZvMUGmuJmkbmiB1Z3L_n7gtNfHnY2Q/exec";
