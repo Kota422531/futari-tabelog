@@ -1,0 +1,284 @@
+rules_version = '2';
+
+// =====================================================================
+// ふたりの食べログ  Firestore セキュリティルール
+//   設計書: docs/04_database.md
+//   方式  : ログインなし・合言葉(グループID)方式
+//   構造  : groups/{groupId}/shops/{shopId}/visits/{visitId}/photos/{photoId}
+//
+//   ※ enum の値・文字数上限は app/js/schema.js と必ず同期させること
+// =====================================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -----------------------------------------------------------------
+    // enum 定義(schema.js と同じキー)
+    // -----------------------------------------------------------------
+    function CATEGORY_KEYS()     { return ['restaurant', 'izakaya', 'bar', 'cafe', 'ramen', 'yakiniku', 'washoku', 'sweets', 'other']; }
+    function TIMING_KEYS()       { return ['morning', 'lunch', 'cafe', 'dinner', 'late']; }
+    function BUDGET_KEYS()       { return ['b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7']; }
+    function SCENE_KEYS()        { return ['settai', 'kaishoku', 'nomikai', 'date', 'solo', 'family', 'friends', 'joshikai', 'anniversary', 'sobetsu', 'other']; }
+    function MOOD_KEYS()         { return ['calm', 'casual', 'stylish', 'luxury', 'homey', 'lively', 'view']; }
+    function RESERVATION_KEYS()  { return ['required', 'recommended', 'notneeded', 'unavailable', 'unknown']; }
+    function PRIVATE_ROOM_KEYS() { return ['yes', 'semi', 'no', 'unknown']; }
+    function SMOKING_KEYS()      { return ['nonsmoking', 'separated', 'allowed', 'unknown']; }
+    function PARKING_KEYS()      { return ['yes', 'nearby', 'no', 'unknown']; }
+    function CASHLESS_KEYS()     { return ['yes', 'partial', 'cashonly', 'unknown']; }
+    function KIDS_OK_KEYS()      { return ['yes', 'no', 'unknown']; }
+
+    // -----------------------------------------------------------------
+    // 基本の型チェック
+    // -----------------------------------------------------------------
+    function validGroupId(g) {
+      return g is string && g.matches('^[A-Za-z0-9_-]{20,64}$');
+    }
+    function isStr(v, minLen, maxLen) {
+      return v is string && v.size() >= minLen && v.size() <= maxLen;
+    }
+    function isInt(v, minV, maxV) {
+      return v is int && v >= minV && v <= maxV;
+    }
+    function isNum(v, minV, maxV) {
+      return v is number && v >= minV && v <= maxV;
+    }
+    // YYYY-MM-DD(月日の範囲まで。暦として正しいか・未来日かはクライアントで検証)
+    function isDate(v) {
+      return v is string
+        && v.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$');
+    }
+    function isNickname(v) {
+      return isStr(v, 1, 20);
+    }
+    // base64 JPEG の data URL('data:image/jpeg;base64,' = 23文字で始まる)
+    //   巨大文字列への正規表現を避け、','で分割して先頭を比較する(base64本体に','は含まれない)
+    function isJpeg(v, maxLen) {
+      return v is string
+        && v.size() > 23
+        && v.size() <= maxLen
+        && v.split(',').size() == 2
+        && v.split(',')[0] == 'data:image/jpeg;base64';
+    }
+    // 重複なし・enum 内のみの配列
+    function isEnumList(v, keys, maxN) {
+      return v is list
+        && v.size() <= maxN
+        && v.hasOnly(keys)
+        && v.toSet().size() == v.size();
+    }
+
+    // -----------------------------------------------------------------
+    // 任意フィールド用(存在する時だけ検証する)
+    // -----------------------------------------------------------------
+    function optStr(d, k, maxLen)              { return !(k in d) || isStr(d[k], 0, maxLen); }
+    function optEnum(d, k, keys)               { return !(k in d) || (d[k] is string && d[k] in keys); }
+    function optEnumOrNull(d, k, keys)         { return !(k in d) || d[k] == null || (d[k] is string && d[k] in keys); }
+    function optEnumList(d, k, keys, maxN)     { return !(k in d) || isEnumList(d[k], keys, maxN); }
+    function optIntOrNull(d, k, minV, maxV)    { return !(k in d) || d[k] == null || isInt(d[k], minV, maxV); }
+    function optNumOrNull(d, k, minV, maxV)    { return !(k in d) || d[k] == null || isNum(d[k], minV, maxV); }
+    function optInt(d, k, minV, maxV)          { return !(k in d) || isInt(d[k], minV, maxV); }
+    function optDateOrNull(d, k)               { return !(k in d) || d[k] == null || isDate(d[k]); }
+    function optJpegOrNull(d, k, maxLen)       { return !(k in d) || d[k] == null || isJpeg(d[k], maxLen); }
+    function optStrList(d, k, maxN)            { return !(k in d) || (d[k] is list && d[k].size() <= maxN); }
+
+    // URL: 空文字 または http(s):// で始まり空白を含まない
+    function optUrl(d, k) {
+      return !(k in d)
+        || d[k] == ''
+        || (isStr(d[k], 1, 300) && d[k].matches('^https?://[^\\s]+$'));
+    }
+
+    // menus: 最大20件、各要素 1〜40文字(ルールにループが無いため添字で展開)
+    function menuAt(m, i) { return m.size() <= i || isStr(m[i], 1, 40); }
+    function isMenus(m) {
+      return m is list && m.size() <= 20
+        && menuAt(m, 0)  && menuAt(m, 1)  && menuAt(m, 2)  && menuAt(m, 3)  && menuAt(m, 4)
+        && menuAt(m, 5)  && menuAt(m, 6)  && menuAt(m, 7)  && menuAt(m, 8)  && menuAt(m, 9)
+        && menuAt(m, 10) && menuAt(m, 11) && menuAt(m, 12) && menuAt(m, 13) && menuAt(m, 14)
+        && menuAt(m, 15) && menuAt(m, 16) && menuAt(m, 17) && menuAt(m, 18) && menuAt(m, 19);
+    }
+
+    // thumbs: 最大4件、各要素 45,000文字以下の JPEG data URL
+    function thumbAt(l, i) { return l.size() <= i || isJpeg(l[i], 45000); }
+    function isThumbs(l) {
+      return l is list && l.size() <= 4
+        && thumbAt(l, 0) && thumbAt(l, 1) && thumbAt(l, 2) && thumbAt(l, 3);
+    }
+
+    // -----------------------------------------------------------------
+    // 時刻・作成者
+    // -----------------------------------------------------------------
+    function stampsOnCreate(d) {
+      return d.createdAt == request.time && d.updatedAt == request.time;
+    }
+    // update で createdAt / createdBy を変更させない
+    function createdUnchanged(d) {
+      return d.createdAt == resource.data.createdAt
+        && d.createdBy == resource.data.createdBy;
+    }
+
+    // -----------------------------------------------------------------
+    // groups/{groupId}
+    // -----------------------------------------------------------------
+    function validGroupDoc(d) {
+      return d.keys().hasOnly(['name', 'createdAt'])
+        && d.keys().hasAll(['createdAt'])
+        && d.createdAt == request.time
+        && optStr(d, 'name', 60);
+    }
+
+    // -----------------------------------------------------------------
+    // shops/{shopId}
+    // -----------------------------------------------------------------
+    function shopKeys() {
+      return [
+        // 入力項目
+        'name', 'category', 'genre', 'address', 'lat', 'lng', 'area', 'url',
+        'reservation', 'privateRoom', 'smoking', 'parking', 'cashless', 'kidsOk', 'note',
+        // メタ
+        'createdBy', 'createdAt', 'updatedBy', 'updatedAt',
+        // 集計値(非正規化)
+        'ratingSum', 'ratingCount', 'visitCount', 'lastVisitedOn',
+        'sceneSet', 'timingSet', 'budgetSet', 'visitorSet', 'thumb', 'menusText'
+      ];
+    }
+    function shopInputOk(d) {
+      return isStr(d.name, 1, 60)
+        && d.category is string && d.category in CATEGORY_KEYS()
+        && optStr(d, 'genre', 30)
+        && optStr(d, 'address', 120)
+        && optNumOrNull(d, 'lat', -90, 90)
+        && optNumOrNull(d, 'lng', -180, 180)
+        // lat と lng は両方あり or 両方なし(null)
+        && ((d.get('lat', null) == null) == (d.get('lng', null) == null))
+        && optStr(d, 'area', 30)
+        && optUrl(d, 'url')
+        && optEnum(d, 'reservation', RESERVATION_KEYS())
+        && optEnum(d, 'privateRoom', PRIVATE_ROOM_KEYS())
+        && optEnum(d, 'smoking', SMOKING_KEYS())
+        && optEnum(d, 'parking', PARKING_KEYS())
+        && optEnum(d, 'cashless', CASHLESS_KEYS())
+        && optEnum(d, 'kidsOk', KIDS_OK_KEYS())
+        && optStr(d, 'note', 500)
+        && isNickname(d.createdBy)
+        && isNickname(d.updatedBy);
+    }
+    // 集計値は誰でも再計算して書くため、型・サイズの検証のみ
+    function shopAggOk(d) {
+      return optInt(d, 'ratingSum', 0, 1000000)
+        && optInt(d, 'ratingCount', 0, 1000000)
+        && optInt(d, 'visitCount', 0, 1000000)
+        && optDateOrNull(d, 'lastVisitedOn')
+        && optStrList(d, 'sceneSet', 11)
+        && optStrList(d, 'timingSet', 5)
+        && optStrList(d, 'budgetSet', 7)
+        && optStrList(d, 'visitorSet', 100)
+        && optJpegOrNull(d, 'thumb', 45000)
+        && optStr(d, 'menusText', 10000);
+    }
+    function validShop(d) {
+      return d.keys().hasOnly(shopKeys())
+        && d.keys().hasAll(['name', 'category', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt'])
+        && shopInputOk(d)
+        && shopAggOk(d);
+    }
+    // 店の update:
+    //  - 利用者による編集 → updatedAt == request.time
+    //  - 集計値だけの更新 → updatedAt / updatedBy を据え置き
+    function shopUpdateStampOk(d) {
+      return d.updatedAt == request.time
+        || (d.updatedAt == resource.data.updatedAt && d.updatedBy == resource.data.updatedBy);
+    }
+
+    // -----------------------------------------------------------------
+    // visits/{visitId}
+    // -----------------------------------------------------------------
+    function visitKeys() {
+      return [
+        'visitedOn', 'timing', 'people', 'budget', 'priceActual', 'scenes', 'menus',
+        'tasteComment', 'noiseLevel', 'moodTags', 'moodComment', 'rating',
+        'thumbs', 'photoCount',
+        'createdBy', 'createdAt', 'updatedBy', 'updatedAt'
+      ];
+    }
+    function validVisit(d) {
+      return d.keys().hasOnly(visitKeys())
+        && d.keys().hasAll(['visitedOn', 'timing', 'rating', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt'])
+        && isDate(d.visitedOn)
+        && d.timing is string && d.timing in TIMING_KEYS()
+        && isInt(d.rating, 1, 5)
+        && optIntOrNull(d, 'people', 1, 50)
+        && optEnumOrNull(d, 'budget', BUDGET_KEYS())
+        && optIntOrNull(d, 'priceActual', 0, 1000000)
+        && optEnumList(d, 'scenes', SCENE_KEYS(), 11)
+        && (!('menus' in d) || isMenus(d.menus))
+        && optStr(d, 'tasteComment', 1000)
+        && optIntOrNull(d, 'noiseLevel', 1, 5)
+        && optEnumList(d, 'moodTags', MOOD_KEYS(), 7)
+        && optStr(d, 'moodComment', 500)
+        && (!('thumbs' in d) || isThumbs(d.thumbs))
+        && optInt(d, 'photoCount', 0, 4)
+        && isNickname(d.createdBy)
+        && isNickname(d.updatedBy);
+    }
+
+    // -----------------------------------------------------------------
+    // photos/{photoId}
+    // -----------------------------------------------------------------
+    function validPhoto(d) {
+      return d.keys().hasOnly(['data', 'order', 'width', 'height', 'createdAt'])
+        && d.keys().hasAll(['data', 'order', 'width', 'height', 'createdAt'])
+        && isJpeg(d.data, 760000)
+        && isInt(d.order, 0, 3)
+        && isInt(d.width, 1, 4096)
+        && isInt(d.height, 1, 4096);
+    }
+
+    // =================================================================
+    // パス別の許可
+    // =================================================================
+    match /groups/{groupId} {
+      // list(groups 全件の取得)は許可しない → IDを知らなければ到達不可
+      allow get:    if validGroupId(groupId);
+      allow create: if validGroupId(groupId) && validGroupDoc(request.resource.data);
+      // update / delete / list は拒否(既定)
+
+      match /shops/{shopId} {
+        allow read:   if validGroupId(groupId);
+        allow create: if validGroupId(groupId)
+                      && validShop(request.resource.data)
+                      && stampsOnCreate(request.resource.data);
+        allow update: if validGroupId(groupId)
+                      && validShop(request.resource.data)
+                      && createdUnchanged(request.resource.data)
+                      && shopUpdateStampOk(request.resource.data);
+        allow delete: if validGroupId(groupId);
+
+        match /visits/{visitId} {
+          allow read:   if validGroupId(groupId);
+          allow create: if validGroupId(groupId)
+                        && validVisit(request.resource.data)
+                        && stampsOnCreate(request.resource.data);
+          allow update: if validGroupId(groupId)
+                        && validVisit(request.resource.data)
+                        && createdUnchanged(request.resource.data)
+                        && request.resource.data.updatedAt == request.time;
+          allow delete: if validGroupId(groupId);
+
+          match /photos/{photoId} {
+            allow read:   if validGroupId(groupId);
+            allow create: if validGroupId(groupId)
+                          && validPhoto(request.resource.data)
+                          && request.resource.data.createdAt == request.time;
+            // 並び順の変更などに備え update も許可(createdAt は据え置き)
+            allow update: if validGroupId(groupId)
+                          && validPhoto(request.resource.data)
+                          && request.resource.data.createdAt == resource.data.createdAt;
+            allow delete: if validGroupId(groupId);
+          }
+        }
+      }
+    }
+
+    // 上記以外のパスはすべて拒否(明示的な allow が無いため)
+  }
+}

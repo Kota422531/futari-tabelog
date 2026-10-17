@@ -1,0 +1,228 @@
+/* =========================================================
+   ふたりの食べログ — Design Tokens
+   世界観:「ふたりの食の手帳」 和紙の生成り × 墨 × 朱印
+   仕様の詳細は docs/03_design.md を参照
+   ========================================================= */
+
+@import url("https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@600;700&display=swap");
+
+:root {
+  color-scheme: light dark;
+
+  /* ---------- 基本色(ライト:和紙の手帳) ---------- */
+  --color-bg: #F2EBDC;              /* 生成り(和紙) */
+  --color-bg-deep: #E9DFCB;         /* ヘッダー下・地図上のフェード等 */
+  --color-surface: #FBF7EE;         /* カード・シート(白っぽい上質紙) */
+  --color-surface-2: #EDE4D2;       /* 入力欄・未選択チップ・セグメント地 */
+  --color-surface-pressed: #E3D8C2; /* 押下時 */
+  --color-text: #2A2622;            /* 墨 */
+  --color-text-strong: #1F1B18;     /* 見出し */
+  --color-muted: #6B6358;           /* 補足(AA 4.5:1 以上 on bg) */
+  --color-subtle: #948A7C;          /* プレースホルダ・無効(装飾用途のみ) */
+  --color-border: #DCD0B9;          /* 罫線 */
+  --color-border-strong: #C4B59A;   /* 入力欄枠・区切り強 */
+  --color-rule: #E2D7C2;            /* 手帳の罫(点線/細線) */
+
+  --color-primary: #B4432A;         /* 朱 */
+  --color-primary-hover: #9E3822;
+  --color-primary-pressed: #8A301D;
+  --color-primary-contrast: #FFF8F0;
+  --color-primary-soft: #F3DCD2;    /* 選択チップ地・強調背景 */
+  --color-primary-soft-text: #8A301D;
+
+  --color-accent: #D0742E;          /* 柿(NEWバッジ・ハイライト少量) */
+  --color-accent-soft: #F6E0CC;
+
+  --color-danger: #A01E2E;          /* 深紅(朱と区別するため青み寄り) */
+  --color-danger-hover: #861826;
+  --color-danger-contrast: #FFF5F5;
+  --color-danger-soft: #F5D9DC;
+
+  --color-success: #3F7448;         /* 松葉 */
+  --color-success-soft: #DCE9D9;
+  --color-warning: #9A6A0E;
+  --color-warning-soft: #F3E6C4;
+
+  --color-star: #C8901A;            /* 金茶 */
+  --color-star-empty: #D8CCB4;
+
+  --color-focus: #2F6F73;           /* フォーカスリング(青碧:朱と別系統で視認性確保) */
+  --color-overlay: rgba(34, 28, 22, 0.42);
+  --color-toast-bg: #2A2622;
+  --color-toast-text: #F6F0E4;
+  --color-pin-border: #FBF7EE;
+  --color-current-location: #2F6F73;
+
+  /* ---------- カテゴリ色(地図ピン・カード帯・チップ) ---------- */
+  /* base=塗り(白文字/白縁でコントラスト確保)、soft=淡い地、ink=soft上の文字色 */
+  --cat-restaurant: #2F6F73;  --cat-restaurant-soft: #D6E6E4;  --cat-restaurant-ink: #1F4F52;  /* 青碧 */
+  --cat-izakaya:    #C8602A;  --cat-izakaya-soft:    #F6DFCD;  --cat-izakaya-ink:    #8C3F17;  /* 柿(提灯) */
+  --cat-bar:        #4B3E78;  --cat-bar-soft:        #DFDAEC;  --cat-bar-ink:        #372C5C;  /* 紫紺 */
+  --cat-cafe:       #7A5235;  --cat-cafe-soft:       #EADBCB;  --cat-cafe-ink:       #5A3B24;  /* 焦茶 */
+  --cat-ramen:      #B98410;  --cat-ramen-soft:      #F3E5BF;  --cat-ramen-ink:      #7A560A;  /* 山吹 */
+  --cat-yakiniku:   #8E2B3A;  --cat-yakiniku-soft:   #EFD5D8;  --cat-yakiniku-ink:   #6B1F2B;  /* 臙脂 */
+  --cat-washoku:    #4E6B34;  --cat-washoku-soft:    #DEE6D2;  --cat-washoku-ink:    #364B23;  /* 松葉 */
+  --cat-sweets:     #B85C7C;  --cat-sweets-soft:     #F3DCE4;  --cat-sweets-ink:     #8A3D59;  /* 撫子 */
+  --cat-other:      #6F6A60;  --cat-other-soft:      #E5E0D5;  --cat-other-ink:      #4A463F;  /* 鈍色 */
+
+  /* ---------- タイポグラフィ ---------- */
+  --font-body: "Zen Kaku Gothic New", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif;
+  --font-heading: "Zen Old Mincho", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+  --font-num: "Zen Kaku Gothic New", "Hiragino Sans", sans-serif; /* 数字は本文書体+tabular-nums */
+  --font-emoji: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+
+  --fs-xs: 0.75rem;     /* 12px キャプション・帰属表示 */
+  --fs-sm: 0.8125rem;   /* 13px 補足・メタ */
+  --fs-base: 1rem;      /* 16px 本文・入力(iOSズーム防止のため入力は16px以上) */
+  --fs-md: 1.0625rem;   /* 17px カード店名 */
+  --fs-lg: 1.25rem;     /* 20px セクション見出し */
+  --fs-xl: 1.5rem;      /* 24px 画面タイトル */
+  --fs-2xl: 1.875rem;   /* 30px 店詳細の店名 */
+  --fs-score: 2.25rem;  /* 36px 店詳細の平均おすすめ度 */
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-bold: 700;
+  --fw-heading: 600;
+
+  --lh-tight: 1.3;      /* 見出し */
+  --lh-snug: 1.45;      /* カード・UIラベル */
+  --lh-body: 1.75;      /* 本文・感想(和文は広め) */
+  --ls-heading: 0.04em; /* 明朝見出しの字間 */
+  --ls-body: 0.02em;
+
+  /* ---------- 余白(4px基準) ---------- */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;   /* 画面左右ガター */
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 56px;
+  --gutter: var(--space-4);
+  --content-max: 480px;      /* PC時の中央1カラム幅 */
+  --tap-min: 44px;           /* 最小タップ領域 */
+
+  /* ---------- 角丸(階層ごとに変える) ---------- */
+  --radius-xs: 4px;     /* バッジ・小タグ */
+  --radius-sm: 8px;     /* 入力欄・セグメント内側・サムネイル */
+  --radius-md: 12px;    /* ボタン・カード */
+  --radius-lg: 20px;    /* ボトムシート上端・モーダル */
+  --radius-pill: 999px; /* チップ・トースト */
+  --radius-round: 50%;  /* FAB・地図ピン */
+
+  /* ---------- 影(暖色寄りの墨影。多用しない) ---------- */
+  --shadow-color: 60, 40, 20;
+  --shadow-1: 0 1px 0 rgba(var(--shadow-color), 0.06), 0 1px 3px rgba(var(--shadow-color), 0.08);   /* カード */
+  --shadow-2: 0 2px 6px rgba(var(--shadow-color), 0.10), 0 8px 20px rgba(var(--shadow-color), 0.10); /* FAB・ポップアップ */
+  --shadow-3: 0 -4px 24px rgba(var(--shadow-color), 0.16);                                            /* ボトムシート */
+  --shadow-pin: 0 2px 4px rgba(var(--shadow-color), 0.30);
+  --shadow-inset: inset 0 1px 2px rgba(var(--shadow-color), 0.08);                                    /* 入力欄 */
+
+  /* ---------- 罫・線 ---------- */
+  --border-w: 1px;
+  --border-w-strong: 1.5px;
+  --focus-ring: 0 0 0 3px var(--color-bg), 0 0 0 5px var(--color-focus);
+
+  /* ---------- 動き ---------- */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-sheet: 280ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ---------- レイヤー ---------- */
+  --z-map-ui: 400;      /* Leaflet(~400)より上に出すUI */
+  --z-header: 500;
+  --z-tabbar: 600;
+  --z-fab: 650;
+  --z-overlay: 900;
+  --z-sheet: 1000;
+  --z-toast: 1100;
+
+  /* ---------- 固定寸法 ---------- */
+  --header-h: 52px;
+  --tabbar-h: 60px;     /* + env(safe-area-inset-bottom) */
+  --fab-size: 60px;
+  --pin-size: 36px;
+  --thumb-card: 72px;
+}
+
+/* =========================================================
+   ダーク(OS連動):夜の手帳 — 墨の地に生成りの文字
+   ========================================================= */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #1C1A17;
+    --color-bg-deep: #161411;
+    --color-surface: #26231F;
+    --color-surface-2: #302C27;
+    --color-surface-pressed: #3A352F;
+    --color-text: #ECE5D7;
+    --color-text-strong: #F6F0E4;
+    --color-muted: #A99F90;
+    --color-subtle: #7D7467;
+    --color-border: #3D3731;
+    --color-border-strong: #544C43;
+    --color-rule: #34302A;
+
+    --color-primary: #E2734F;
+    --color-primary-hover: #EC8664;
+    --color-primary-pressed: #CF6341;
+    --color-primary-contrast: #1C1A17;
+    --color-primary-soft: #4A2A20;
+    --color-primary-soft-text: #F3B39C;
+
+    --color-accent: #E99A5A;
+    --color-accent-soft: #46301F;
+
+    --color-danger: #F0737E;
+    --color-danger-hover: #F58C95;
+    --color-danger-contrast: #1C1A17;
+    --color-danger-soft: #4A2228;
+
+    --color-success: #86BC8C;
+    --color-success-soft: #24372A;
+    --color-warning: #E2B455;
+    --color-warning-soft: #40331A;
+
+    --color-star: #E8B64C;
+    --color-star-empty: #4A443C;
+
+    --color-focus: #6FC1C4;
+    --color-overlay: rgba(0, 0, 0, 0.58);
+    --color-toast-bg: #ECE5D7;
+    --color-toast-text: #1C1A17;
+    --color-pin-border: #1C1A17;
+    --color-current-location: #6FC1C4;
+
+    --cat-restaurant: #4E9A9E;  --cat-restaurant-soft: #1F3637;  --cat-restaurant-ink: #9FD3D5;
+    --cat-izakaya:    #DE7A44;  --cat-izakaya-soft:    #43291A;  --cat-izakaya-ink:    #F4B48C;
+    --cat-bar:        #8073B8;  --cat-bar-soft:        #2C2742;  --cat-bar-ink:        #C5BCEB;
+    --cat-cafe:       #A9805F;  --cat-cafe-soft:       #382A1F;  --cat-cafe-ink:       #E2C3A6;
+    --cat-ramen:      #D3A23A;  --cat-ramen-soft:      #3D3117;  --cat-ramen-ink:      #EED38E;
+    --cat-yakiniku:   #C25566;  --cat-yakiniku-soft:   #3E1F25;  --cat-yakiniku-ink:   #EBA6B1;
+    --cat-washoku:    #7FA05F;  --cat-washoku-soft:    #27321D;  --cat-washoku-ink:    #BCD6A2;
+    --cat-sweets:     #D683A0;  --cat-sweets-soft:     #42262F;  --cat-sweets-ink:     #F2BDCF;
+    --cat-other:      #9A948A;  --cat-other-soft:      #312E29;  --cat-other-ink:      #D4CFC5;
+
+    --shadow-color: 0, 0, 0;
+    --shadow-1: 0 1px 0 rgba(255, 245, 230, 0.03) inset, 0 1px 3px rgba(0, 0, 0, 0.35);
+    --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.40), 0 8px 20px rgba(0, 0, 0, 0.35);
+    --shadow-3: 0 -4px 24px rgba(0, 0, 0, 0.50);
+    --shadow-pin: 0 2px 4px rgba(0, 0, 0, 0.55);
+    --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.30);
+  }
+}
+
+/* 動きを減らす設定 */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-sheet: 0ms;
+  }
+}
