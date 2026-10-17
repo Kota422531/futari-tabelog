@@ -8,12 +8,12 @@
 //     HTTP リファラー制限を設定してください)。合言葉はここに書かないこと。
 // =====================================================================
 export const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyDqP2l55_ARU3H-59xIgTatj1N1QNTmxGU",
+  authDomain: "futari-tabelog.firebaseapp.com",
+  projectId: "futari-tabelog",
+  storageBucket: "futari-tabelog.firebasestorage.app",
+  messagingSenderId: "726312121404",
+  appId: "1:726312121404:web:45c36a3d4dda01e313bf39",
 };
 
 // Firebase JS SDK(CDN ESM)のバージョン
