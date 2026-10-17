@@ -9,7 +9,7 @@ import {
   loadLeaflet, addOsmLayer, searchPlaces, reverseGeocode, getCurrentPosition, geoErrorMessage, JAPAN_BOUNDS,
 } from '../geo.js';
 import { state } from '../state.js';
-import { HOTPEPPER_API_KEY } from '../firebase-config.js';
+import { HOTPEPPER_PROXY_URL } from '../firebase-config.js';
 
 const KIND_LABEL = { shop: 'お店', address: '住所', place: '地名' };
 
@@ -129,7 +129,7 @@ export function openLocationPicker(init = {}) {
           const c = map.getCenter();
           near = { lat: c.lat, lng: c.lng };
         }
-        const list = await searchPlaces(q, { viewbox, near: map && map.getZoom() >= 13 ? near : undefined, hotpepperKey: HOTPEPPER_API_KEY || '' });
+        const list = await searchPlaces(q, { viewbox, near: map && map.getZoom() >= 13 ? near : undefined, hotpepperProxy: HOTPEPPER_PROXY_URL || '' });
         clear(results);
         if (!list.length) {
           add(results, h('div', { class: 'picker__msg' },

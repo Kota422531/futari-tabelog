@@ -137,35 +137,29 @@ function nominatimSearch(q, opts = {}) {
 }
 
 // ---------------------------------------------------------------------
-// ホットペッパーグルメ Webサービス(任意:firebase-config.js に API キーがある時だけ使う)
-//   CORS 非対応のため JSONP で呼ぶ
+// ホットペッパーグルメ Webサービス(任意)
+//   API が CORS 非対応のため、Google Apps Script の中継(HOTPEPPER_PROXY_URL)経由で呼ぶ。
+//   API キーは中継側に置き、このリポジトリには含めない。
 // ---------------------------------------------------------------------
-let jsonpSeq = 0;
-function jsonp(url, timeoutMs = 8000) {
-  return new Promise((resolve, reject) => {
-    const cb = `__ftJsonp${Date.now()}_${++jsonpSeq}`;
-    const s = document.createElement('script');
-    const done = () => { delete window[cb]; s.remove(); clearTimeout(timer); };
-    const timer = setTimeout(() => { done(); reject(new Error('timeout')); }, timeoutMs);
-    window[cb] = (data) => { done(); resolve(data); };
-    s.src = `${url}&callback=${cb}`;
-    s.onerror = () => { done(); reject(new Error('jsonp failed')); };
-    document.head.append(s);
-  });
-}
-
-export async function searchHotpepper(q, key, opts = {}) {
-  const p = new URLSearchParams({ key, keyword: q, format: 'jsonp', count: '10' });
-  if (opts.near) { p.set('lat', String(opts.near.lat)); p.set('lng', String(opts.near.lng)); p.set('range', '5'); }
-  const data = await jsonp(`https://webservice.recruit.co.jp/hotpepper/gourmet/v1/?${p}`);
-  const shops = data && data.results && Array.isArray(data.results.shop) ? data.results.shop : [];
-  return shops.map((r) => ({
-    name: r.name || '', address: r.address || '',
-    lat: Number(r.lat), lng: Number(r.lng),
-    kind: 'shop', source: 'hotpepper',
-    genre: r.genre && r.genre.name ? r.genre.name : '',
-    url: r.urls && r.urls.pc ? r.urls.pc : '',
-  })).filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng));
+export async function searchHotpepper(q, proxyUrl, opts = {}) {
+  const p = new URLSearchParams({ q });
+  if (opts.near) { p.set('lat', String(opts.near.lat)); p.set('lng', String(opts.near.lng)); }
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), 10000) : null;
+  try {
+    const res = await fetch(`${proxyUrl}${proxyUrl.includes('?') ? '&' : '?'}${p}`, ctrl ? { signal: ctrl.signal } : {});
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const shops = data && Array.isArray(data.shops) ? data.shops : [];
+    return shops.map((r) => ({
+      name: r.name || '', address: r.address || '',
+      lat: Number(r.lat), lng: Number(r.lng),
+      kind: 'shop', source: 'hotpepper',
+      genre: r.genre || '', url: r.url || '',
+    })).filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng));
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function dedupe(list) {
@@ -182,14 +176,14 @@ function dedupe(list) {
  * 住所・店名検索
  *   住所 → 国土地理院、店名 → (ホットペッパー)+ OpenStreetMap を並行で引き、結果をまとめる
  * @param {string} q
- * @param {{viewbox?:string, near?:{lat:number,lng:number}, hotpepperKey?:string}} opts
+ * @param {{viewbox?:string, near?:{lat:number,lng:number}, hotpepperProxy?:string}} opts
  * @returns {Promise<Array<{name:string, address:string, lat:number, lng:number, kind:'shop'|'address'|'place', source:string, genre?:string, url?:string}>>}
  */
 export async function searchPlaces(q, opts = {}) {
   const addrLike = looksLikeAddress(q);
   const safe = (p) => p.then((x) => ({ ok: true, list: x }), () => ({ ok: false, list: [] }));
   const gsiP = safe(searchAddressGsi(q));
-  const hpP = opts.hotpepperKey ? safe(searchHotpepper(q, opts.hotpepperKey, opts)) : Promise.resolve({ ok: false, list: [] });
+  const hpP = opts.hotpepperProxy ? safe(searchHotpepper(q, opts.hotpepperProxy, opts)) : Promise.resolve({ ok: false, list: [] });
   const osmP = safe((async () => {
     let list = await nominatimSearch(q, opts);
     if (!addrLike && !list.some((r) => r.kind === 'shop')) {
