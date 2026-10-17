@@ -63,7 +63,8 @@ export const FEATURES = Object.freeze([
   { key: 'privateRoom',   label: '個室あり',           test: (s) => s.privateRoom === 'yes' || s.privateRoom === 'semi' },
   { key: 'nonsmoking',    label: '全面禁煙',           test: (s) => s.smoking === 'nonsmoking' },
   { key: 'parking',       label: '駐車場あり',         test: (s) => s.parking === 'yes' || s.parking === 'nearby' },
-  { key: 'cashless',      label: 'カード・電子決済可', test: (s) => s.cashless === 'yes' || s.cashless === 'partial' },
+  { key: 'cashless',      label: 'カード・電子決済可', test: (s) => (Array.isArray(s.payments) && s.payments.some((p) => p !== 'cash')) || s.cashless === 'yes' || s.cashless === 'partial' },
+  { key: 'paypay',        label: 'PayPay可',           test: (s) => Array.isArray(s.payments) && s.payments.includes('paypay') },
   { key: 'kids',          label: '子連れ可',           test: (s) => s.kidsOk === 'yes' },
   { key: 'noReservation', label: '予約不要',           test: (s) => s.reservation === 'notneeded' },
 ]);

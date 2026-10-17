@@ -25,6 +25,7 @@ service cloud.firestore {
     function PARKING_KEYS()      { return ['yes', 'nearby', 'no', 'unknown']; }
     function CASHLESS_KEYS()     { return ['yes', 'partial', 'cashonly', 'unknown']; }
     function KIDS_OK_KEYS()      { return ['yes', 'no', 'unknown']; }
+    function PAYMENT_KEYS()      { return ['cash', 'credit', 'ic', 'idquic', 'paypay', 'rakutenpay', 'dbarai', 'aupay', 'merpay', 'otherpay']; }
 
     // -----------------------------------------------------------------
     // 基本の型チェック
@@ -133,7 +134,7 @@ service cloud.firestore {
       return [
         // 入力項目
         'name', 'category', 'genre', 'address', 'lat', 'lng', 'area', 'url',
-        'reservation', 'privateRoom', 'smoking', 'parking', 'cashless', 'kidsOk', 'note',
+        'reservation', 'privateRoom', 'smoking', 'parking', 'cashless', 'payments', 'kidsOk', 'note',
         // メタ
         'createdBy', 'createdAt', 'updatedBy', 'updatedAt',
         // 集計値(非正規化)
@@ -157,6 +158,7 @@ service cloud.firestore {
         && optEnum(d, 'smoking', SMOKING_KEYS())
         && optEnum(d, 'parking', PARKING_KEYS())
         && optEnum(d, 'cashless', CASHLESS_KEYS())
+        && optEnumList(d, 'payments', PAYMENT_KEYS(), 10)
         && optEnum(d, 'kidsOk', KIDS_OK_KEYS())
         && optStr(d, 'note', 500)
         && isNickname(d.createdBy)

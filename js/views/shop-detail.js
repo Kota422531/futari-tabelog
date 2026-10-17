@@ -5,7 +5,7 @@ import { h, icon, clear, catStyle, safeImageSrc, add } from '../dom.js';
 import { appHeader, iconButton, categoryBadge, starsDisplay, emptyState } from '../components.js';
 import {
   categoryOf, SCENES, TIMINGS, BUDGETS, MOOD_TAGS, RESERVATION, PRIVATE_ROOM, SMOKING, PARKING,
-  CASHLESS, KIDS_OK, NOISE_LEVELS, labelOf, labelsOf, averageRating,
+  CASHLESS, KIDS_OK, PAYMENTS, NOISE_LEVELS, labelOf, labelsOf, averageRating,
 } from '../schema.js';
 import {
   formatShortDate, formatMonthDay, formatDate, formatNumber, hasLocation, isHttpUrl, urlHost,
@@ -197,9 +197,11 @@ export function renderShopDetail(root, ctx, route) {
       ['個室', PRIVATE_ROOM, shop.privateRoom],
       ['喫煙', SMOKING, shop.smoking],
       ['駐車場', PARKING, shop.parking],
-      ['カード・電子決済', CASHLESS, shop.cashless],
       ['子連れ', KIDS_OK, shop.kidsOk],
     ].filter(([, , v]) => v && v !== 'unknown');
+    const pays = labelsOf(PAYMENTS, shop.payments);
+    if (pays.length) rows.splice(4, 0, ['支払い方法', null, pays.join('、')]);
+    else if (shop.cashless && shop.cashless !== 'unknown') rows.splice(4, 0, ['カード・電子決済', CASHLESS, shop.cashless]);
     add(info, h('h2', { class: 'section-title', text: 'お店の情報' }));
     if (!rows.length && !shop.note) {
       add(info, h('div', { class: 'info-empty' },
@@ -208,7 +210,7 @@ export function renderShopDetail(root, ctx, route) {
       return;
     }
     add(info, h('dl', { class: 'info-list' },
-      rows.map(([k, defs, v]) => h('div', { class: 'info-list__row' }, h('dt', { text: k }), h('dd', { text: labelOf(defs, v) }))),
+      rows.map(([k, defs, v]) => h('div', { class: 'info-list__row' }, h('dt', { text: k }), h('dd', { text: defs ? labelOf(defs, v) : v }))),
       shop.note ? h('div', { class: 'info-list__row info-list__row--note' }, h('dt', { text: 'メモ' }), h('dd', { class: 'prewrap', text: shop.note })) : null));
   }
 

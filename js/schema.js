@@ -98,6 +98,20 @@ export const CASHLESS = Object.freeze([
   { key: 'unknown',  label: '不明' },
 ]);
 
+// 支払い方法(複数選択)
+export const PAYMENTS = Object.freeze([
+  { key: 'cash',       label: '現金' },
+  { key: 'credit',     label: 'クレジットカード' },
+  { key: 'ic',         label: '交通系IC' },
+  { key: 'idquic',     label: 'iD・QUICPay' },
+  { key: 'paypay',     label: 'PayPay' },
+  { key: 'rakutenpay', label: '楽天ペイ' },
+  { key: 'dbarai',     label: 'd払い' },
+  { key: 'aupay',      label: 'au PAY' },
+  { key: 'merpay',     label: 'メルペイ' },
+  { key: 'otherpay',   label: 'その他' },
+]);
+
 export const KIDS_OK = Object.freeze([
   { key: 'yes',     label: '可' },
   { key: 'no',      label: '不可' },
@@ -237,7 +251,7 @@ function checkNickname(errs, o, k, label) {
 
 const SHOP_INPUT_KEYS = [
   'name', 'category', 'genre', 'address', 'lat', 'lng', 'area', 'url',
-  'reservation', 'privateRoom', 'smoking', 'parking', 'cashless', 'kidsOk', 'note',
+  'reservation', 'privateRoom', 'smoking', 'parking', 'cashless', 'payments', 'kidsOk', 'note',
 ];
 const META_KEYS = ['createdBy', 'createdAt', 'updatedBy', 'updatedAt'];
 export const SHOP_AGG_KEYS = Object.freeze([
@@ -294,6 +308,13 @@ export function validateShop(obj) {
   checkEnum(errs, obj, 'smoking', '喫煙', SMOKING, false, false);
   checkEnum(errs, obj, 'parking', '駐車場', PARKING, false, false);
   checkEnum(errs, obj, 'cashless', 'カード・電子決済', CASHLESS, false, false);
+  if (has(obj, 'payments')) {
+    const p = obj.payments;
+    const keys = PAYMENTS.map((d) => d.key);
+    if (!Array.isArray(p) || p.length > PAYMENTS.length || p.some((x) => !keys.includes(x)) || new Set(p).size !== p.length) {
+      errs.push('支払い方法の選択が不正です');
+    }
+  }
   checkEnum(errs, obj, 'kidsOk', '子連れ', KIDS_OK, false, false);
   checkStr(errs, obj, 'note', 'その他共有事項', 0, LIMITS.NOTE_MAX, false);
   checkNickname(errs, obj, 'createdBy', '登録者名');

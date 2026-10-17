@@ -18,3 +18,8 @@ export const firebaseConfig = {
 
 // Firebase JS SDK(CDN ESM)のバージョン
 export const FIREBASE_SDK_VERSION = "11.0.2";
+
+// ホットペッパーグルメ Webサービスの API キー(任意)
+//   https://webservice.recruit.co.jp/ で無料登録すると発行されます。
+//   設定すると「住所・店名で検索」で飲食店名の検索精度が大きく上がります。空のままでも動きます。
+export const HOTPEPPER_API_KEY = "";

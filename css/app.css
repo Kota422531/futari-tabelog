@@ -854,3 +854,16 @@ body.is-demo .page--map, body.is-offline .page--map { height: calc(100dvh - var(
   .app { box-shadow: 0 0 0 1px var(--color-border); }
   .strip { box-shadow: 0 0 0 1px var(--color-border); }
 }
+
+/* 位置検索:結果の種別バッジ・ヒント・クレジット */
+.picker__item-name { display: flex; align-items: center; gap: var(--space-2); }
+.picker__kind {
+  flex: none; font-size: var(--fs-xs); font-weight: var(--fw-bold); line-height: 1;
+  padding: 3px 6px; border-radius: var(--radius-sm);
+  background: var(--color-surface-2); color: var(--color-muted);
+}
+.picker__kind--shop { background: var(--color-primary); color: var(--color-primary-contrast); }
+.picker__tips { margin: var(--space-2) 0 0; padding-left: 1.2em; text-align: left; display: grid; gap: var(--space-1); font-size: var(--fs-sm); }
+.picker__credit { font-size: var(--fs-xs); color: var(--color-muted); text-align: right; padding: var(--space-1) var(--space-3); }
+.picker__credit a { color: inherit; }
+.addr-tomap { margin-top: var(--space-2); }

@@ -6,7 +6,7 @@ import { h, icon, clear, nextId, catStyle, safeImageSrc, add } from '../dom.js';
 import { fieldLabel, singleChips, multiChips, segmented, starInput } from '../components.js';
 import {
   CATEGORIES, TIMINGS, BUDGETS, SCENES, MOOD_TAGS, RESERVATION, PRIVATE_ROOM, SMOKING, PARKING,
-  CASHLESS, KIDS_OK, LIMITS, DEFAULT_SHOP_ENUMS, todayStr,
+  KIDS_OK, PAYMENTS, LIMITS, DEFAULT_SHOP_ENUMS, todayStr,
 } from '../schema.js';
 import {
   CATEGORY_SHORT, TIMING_SHORT, RATING_WORDS, NOISE_WORDS, timingForTime, isHttpUrl, parseIntLoose,
@@ -109,7 +109,7 @@ function lenError(v, max, msg) {
 export function defaultShopRaw() {
   return {
     name: '', category: null, genre: '', address: '', lat: null, lng: null, accuracy: null, area: '', url: '',
-    ...DEFAULT_SHOP_ENUMS, note: '', autoAddress: null,
+    ...DEFAULT_SHOP_ENUMS, payments: [], note: '', autoAddress: null,
   };
 }
 export function shopRawFrom(shop) {
@@ -119,6 +119,8 @@ export function shopRawFrom(shop) {
   r.lng = typeof shop.lng === 'number' ? shop.lng : null;
   r.accuracy = null;
   r.autoAddress = null;
+  r.payments = Array.isArray(shop.payments) ? [...shop.payments] : [];
+  if (!r.payments.length && shop.cashless === 'cashonly') r.payments = ['cash'];
   return r;
 }
 
@@ -146,7 +148,12 @@ export function shopSection(initial, o) {
   const addrInput = textInput({ id: addrId, value: v.address, max: LIMITS.ADDRESS_MAX });
   const addrSuggest = h('div', { class: 'addr-suggest', hidden: true });
   const addrNote = h('p', { class: 'field__help', hidden: true });
-  fields.address = makeField({ label: '住所', forId: addrId, control: h('div', {}, addrInput, addrSuggest, addrNote) });
+  const addrToMap = h('button', {
+    type: 'button', class: 'btn btn--ghost btn--sm addr-tomap', hidden: true,
+    onClick: () => pick(true, addrInput.value.trim()),
+  }, icon('pin', { size: 16 }), 'この住所で地図に置く');
+  const syncAddrToMap = () => { addrToMap.hidden = !(addrInput.value.trim().length >= 4 && v.lat === null); };
+  fields.address = makeField({ label: '住所', forId: addrId, control: h('div', {}, addrInput, addrToMap, addrSuggest, addrNote) });
 
   function applyAddress(addr) {
     addrInput.placeholder = '';
@@ -207,12 +214,27 @@ export function shopSection(initial, o) {
     }
   }
 
-  async function pick(focusSearch = false) {
-    const r = await openLocationPicker({ lat: v.lat, lng: v.lng, focusSearch });
-    if (r) setLocation(r.lat, r.lng, { address: r.address || null, fetch: false });
+  async function pick(focusSearch = false, query = '') {
+    const r = await openLocationPicker({ lat: v.lat, lng: v.lng, focusSearch, query });
+    if (!r) return;
+    setLocation(r.lat, r.lng, { address: r.address || null, fetch: false });
+    const pl = r.place;
+    if (pl && pl.kind === 'shop') {
+      if (!nameInput.value.trim() && pl.name) { nameInput.value = pl.name.slice(0, LIMITS.SHOP_NAME_MAX); checkDuplicates(); }
+      if (!genreInput.value.trim() && pl.genre) genreInput.value = pl.genre.slice(0, LIMITS.GENRE_MAX);
+      if (!urlInput.value.trim() && pl.url && isHttpUrl(pl.url)) urlInput.value = pl.url.slice(0, LIMITS.URL_MAX);
+      changed();
+    }
+  }
+  /** 検索窓の初期値:店名(あれば)+エリア、なければ住所 */
+  function searchSeed() {
+    const n = nameInput.value.trim();
+    if (n) return [n, areaInput.value.trim()].filter(Boolean).join(' ');
+    return addrInput.value.trim();
   }
 
   function renderLoc() {
+    syncAddrToMap();
     clear(locBox);
     if (preview) { preview.remove(); preview = null; previewMarker = null; }
     if (v.lat === null) {
@@ -221,7 +243,7 @@ export function shopSection(initial, o) {
       add(locBox, cur,
         h('div', { class: 'btn-row' },
           h('button', { type: 'button', class: 'btn btn--secondary', text: '地図で選ぶ', onClick: () => pick(false) }),
-          h('button', { type: 'button', class: 'btn btn--secondary', text: '住所・店名で検索', onClick: () => pick(true) })),
+          h('button', { type: 'button', class: 'btn btn--secondary', text: '住所・店名で検索', onClick: () => pick(true, searchSeed()) })),
         h('p', { class: 'field__help', text: '位置を設定すると地図に表示されます(後から設定も可)' }));
       return;
     }
@@ -306,7 +328,6 @@ export function shopSection(initial, o) {
     ['privateRoom', '個室', PRIVATE_ROOM],
     ['smoking', '喫煙', SMOKING],
     ['parking', '駐車場', PARKING],
-    ['cashless', 'カード・電子決済', CASHLESS],
     ['kidsOk', '子連れ', KIDS_OK],
   ];
   const enumFields = enumDefs.map(([key, label, defs]) => {
@@ -320,13 +341,19 @@ export function shopSection(initial, o) {
     });
   });
 
-  const hasDetails = !!(v.genre || v.area || v.url || v.note || enumDefs.some(([k]) => v[k] !== 'unknown'));
-  const details = collapsible('詳しく入力(ジャンル・エリア・設備など)',
-    [h('div', { class: 'field-row' }, fields.genre, fields.area), ...enumFields, fields.url, fields.note],
+  const payLabelId = nextId('lbl');
+  fields.payments = makeField({
+    label: '支払い方法(複数選択可)', labelId: payLabelId, className: 'field--compact',
+    control: multiChips({ labelId: payLabelId, options: PAYMENTS, value: v.payments, className: 'chips--sm', onChange: (x) => { v.payments = x; changed(); } }),
+  });
+
+  const hasDetails = !!(v.genre || v.area || v.url || v.note || v.payments.length || enumDefs.some(([k]) => v[k] !== 'unknown'));
+  const details = collapsible('詳しく入力(ジャンル・エリア・設備・支払い方法など)',
+    [h('div', { class: 'field-row' }, fields.genre, fields.area), ...enumFields, fields.payments, fields.url, fields.note],
     hasDetails || o.focus === 'details');
 
   [nameInput, addrInput, genreInput, areaInput, urlInput, noteInput].forEach((i) => i.addEventListener('input', changed));
-  addrInput.addEventListener('input', () => { addrSuggest.hidden = true; });
+  addrInput.addEventListener('input', () => { addrSuggest.hidden = true; syncAddrToMap(); });
 
   const el = h('section', { class: 'form-section' },
     h('h2', { class: 'form-section__title', text: 'お店' }),
@@ -347,7 +374,7 @@ export function shopSection(initial, o) {
       name: r.name.trim(), category: r.category, genre: r.genre.trim(), address: r.address.trim(),
       lat: r.lat, lng: r.lng, area: r.area.trim(), url: r.url.trim(),
       reservation: r.reservation, privateRoom: r.privateRoom, smoking: r.smoking, parking: r.parking,
-      cashless: r.cashless, kidsOk: r.kidsOk, note: r.note.trim(),
+      cashless: r.cashless, payments: [...r.payments], kidsOk: r.kidsOk, note: r.note.trim(),
     };
   }
   /** @returns {Array<{field:HTMLElement, focus:()=>void}>} */

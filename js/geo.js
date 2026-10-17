@@ -1,5 +1,5 @@
 // =====================================================================
-// geo.js ― 現在地取得、Nominatim(検索・逆ジオコーディング)、Leaflet の読み込み
+// geo.js ― 現在地取得、住所・店名検索(国土地理院/OSM Nominatim/ホットペッパー)、逆ジオコーディング、Leaflet の読み込み
 //   Nominatim 利用規約:1秒1リクエスト以下、検索はボタン押下時のみ、accept-language=ja
 // =====================================================================
 
@@ -77,24 +77,138 @@ function reorderDisplayName(name) {
   return parts.reverse().join('');
 }
 
-/**
- * 住所・店名検索(最大10件)
- * @returns {Promise<Array<{name:string, address:string, lat:number, lng:number}>>}
- */
-export function searchPlaces(q, opts = {}) {
+// ---------------------------------------------------------------------
+// 国土地理院 住所検索(無料・キー不要・日本の住所に強い)
+// ---------------------------------------------------------------------
+const GSI_ADDRESS = 'https://msearch.gsi.go.jp/address-search/AddressSearch';
+
+/** 住所らしい入力か(都道府県・市区町村・丁目・番地・「1-2-3」・郵便番号) */
+export function looksLikeAddress(q) {
+  const t = String(q || '').normalize('NFKC');
+  return /丁目|番地|\d+\s*[-ー−‐]\s*\d+|〒|^\d{3}-?\d{4}|(東京都|北海道|大阪府|京都府|.{2,3}県)|(市|郡).*?(区|町|村)|.区.+?(町|\d)/.test(t);
+}
+
+/** 店名検索用のゆるい言い換え(支店名・括弧・空白の除去) */
+export function nameQueryVariants(q) {
+  const t = String(q || '').normalize('NFKC').trim();
+  const out = [];
+  const push = (x) => { x = x.replace(/\s+/g, ' ').trim(); if (x && x !== t && !out.includes(x)) out.push(x); };
+  const noParen = t.replace(/[(（\[【「].*?[)）\]】」]/g, ' ');
+  push(noParen);
+  // 「〇〇店」「本店」などの支店名トークンを除く
+  push(noParen.split(/\s+/).filter((w) => !/^.+店$|^本店$|^支店$/.test(w)).join(' '));
+  // 末尾の「〇〇店」を除く(空白なしの場合)
+  push(noParen.replace(/\S+?(駅前|駅東口|駅西口|駅南口|駅北口|駅)?店$/, (m) => (m.length < noParen.length ? '' : m)));
+  push(t.replace(/\s+/g, ''));
+  return out.slice(0, 2);
+}
+
+export async function searchAddressGsi(q) {
+  const res = await fetch(`${GSI_ADDRESS}?q=${encodeURIComponent(q)}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const list = await res.json();
+  return (Array.isArray(list) ? list : []).slice(0, 8).map((f) => ({
+    name: f.properties && f.properties.title ? f.properties.title : '',
+    address: f.properties && f.properties.title ? f.properties.title : '',
+    lat: f.geometry && f.geometry.coordinates ? Number(f.geometry.coordinates[1]) : NaN,
+    lng: f.geometry && f.geometry.coordinates ? Number(f.geometry.coordinates[0]) : NaN,
+    kind: 'address', source: 'gsi',
+  })).filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng));
+}
+
+function nominatimSearch(q, opts = {}) {
   return throttled(async () => {
     const p = new URLSearchParams({
       q, format: 'jsonv2', addressdetails: '1', limit: '10', 'accept-language': 'ja', countrycodes: 'jp',
     });
     if (opts.viewbox) p.set('viewbox', opts.viewbox);
     const list = await getJson(`${NOMINATIM}/search?${p}`);
-    return (Array.isArray(list) ? list : []).map((r) => ({
-      name: r.name || (r.display_name || '').split(',')[0] || '',
-      address: formatJpAddress(r.address, reorderDisplayName(r.display_name)),
-      lat: parseFloat(r.lat),
-      lng: parseFloat(r.lon),
-    })).filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng));
+    return (Array.isArray(list) ? list : []).map((r) => {
+      const isPoi = ['amenity', 'shop', 'tourism', 'leisure', 'craft'].includes(r.category);
+      return {
+        name: r.name || (r.display_name || '').split(',')[0] || '',
+        address: formatJpAddress(r.address, reorderDisplayName(r.display_name)),
+        lat: parseFloat(r.lat),
+        lng: parseFloat(r.lon),
+        kind: isPoi ? 'shop' : 'place', source: 'osm',
+      };
+    }).filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng));
   });
+}
+
+// ---------------------------------------------------------------------
+// ホットペッパーグルメ Webサービス(任意:firebase-config.js に API キーがある時だけ使う)
+//   CORS 非対応のため JSONP で呼ぶ
+// ---------------------------------------------------------------------
+let jsonpSeq = 0;
+function jsonp(url, timeoutMs = 8000) {
+  return new Promise((resolve, reject) => {
+    const cb = `__ftJsonp${Date.now()}_${++jsonpSeq}`;
+    const s = document.createElement('script');
+    const done = () => { delete window[cb]; s.remove(); clearTimeout(timer); };
+    const timer = setTimeout(() => { done(); reject(new Error('timeout')); }, timeoutMs);
+    window[cb] = (data) => { done(); resolve(data); };
+    s.src = `${url}&callback=${cb}`;
+    s.onerror = () => { done(); reject(new Error('jsonp failed')); };
+    document.head.append(s);
+  });
+}
+
+export async function searchHotpepper(q, key, opts = {}) {
+  const p = new URLSearchParams({ key, keyword: q, format: 'jsonp', count: '10' });
+  if (opts.near) { p.set('lat', String(opts.near.lat)); p.set('lng', String(opts.near.lng)); p.set('range', '5'); }
+  const data = await jsonp(`https://webservice.recruit.co.jp/hotpepper/gourmet/v1/?${p}`);
+  const shops = data && data.results && Array.isArray(data.results.shop) ? data.results.shop : [];
+  return shops.map((r) => ({
+    name: r.name || '', address: r.address || '',
+    lat: Number(r.lat), lng: Number(r.lng),
+    kind: 'shop', source: 'hotpepper',
+    genre: r.genre && r.genre.name ? r.genre.name : '',
+    url: r.urls && r.urls.pc ? r.urls.pc : '',
+  })).filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng));
+}
+
+function dedupe(list) {
+  const seen = new Set();
+  return list.filter((r) => {
+    const k = `${r.name}|${r.lat.toFixed(4)}|${r.lng.toFixed(4)}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+/**
+ * 住所・店名検索
+ *   住所 → 国土地理院、店名 → (ホットペッパー)+ OpenStreetMap を並行で引き、結果をまとめる
+ * @param {string} q
+ * @param {{viewbox?:string, near?:{lat:number,lng:number}, hotpepperKey?:string}} opts
+ * @returns {Promise<Array<{name:string, address:string, lat:number, lng:number, kind:'shop'|'address'|'place', source:string, genre?:string, url?:string}>>}
+ */
+export async function searchPlaces(q, opts = {}) {
+  const addrLike = looksLikeAddress(q);
+  const safe = (p) => p.then((x) => ({ ok: true, list: x }), () => ({ ok: false, list: [] }));
+  const gsiP = safe(searchAddressGsi(q));
+  const hpP = opts.hotpepperKey ? safe(searchHotpepper(q, opts.hotpepperKey, opts)) : Promise.resolve({ ok: false, list: [] });
+  const osmP = safe((async () => {
+    let list = await nominatimSearch(q, opts);
+    if (!addrLike && !list.some((r) => r.kind === 'shop')) {
+      for (const alt of nameQueryVariants(q)) {
+        const more = await nominatimSearch(alt, opts);
+        list = list.concat(more);
+        if (more.some((r) => r.kind === 'shop')) break;
+      }
+    }
+    return list;
+  })());
+  const [gsi, hp, osm] = await Promise.all([gsiP, hpP, osmP]);
+  if (!gsi.ok && !hp.ok && !osm.ok) throw new Error('search failed');
+  const osmShops = osm.list.filter((r) => r.kind === 'shop');
+  const osmPlaces = osm.list.filter((r) => r.kind !== 'shop');
+  const ordered = addrLike
+    ? [...gsi.list, ...hp.list, ...osmShops, ...osmPlaces]
+    : [...hp.list, ...osmShops, ...gsi.list, ...osmPlaces];
+  return dedupe(ordered).slice(0, 15);
 }
 
 /** 逆ジオコーディング → 住所文字列(失敗時は例外) */

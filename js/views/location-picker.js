@@ -9,21 +9,25 @@ import {
   loadLeaflet, addOsmLayer, searchPlaces, reverseGeocode, getCurrentPosition, geoErrorMessage, JAPAN_BOUNDS,
 } from '../geo.js';
 import { state } from '../state.js';
+import { HOTPEPPER_API_KEY } from '../firebase-config.js';
+
+const KIND_LABEL = { shop: 'お店', address: '住所', place: '地名' };
 
 /**
- * @param {{lat?:number|null, lng?:number|null, focusSearch?:boolean}} init
- * @returns {Promise<null|{lat:number, lng:number, address:string|null}>}
+ * @param {{lat?:number|null, lng?:number|null, focusSearch?:boolean, query?:string}} init
+ * @returns {Promise<null|{lat:number, lng:number, address:string|null, place?:object|null}>}
  */
 export function openLocationPicker(init = {}) {
   return new Promise((resolve) => {
     let result = null;
     let pos = typeof init.lat === 'number' && typeof init.lng === 'number' ? { lat: init.lat, lng: init.lng } : null;
-    let address = null; // 逆ジオ結果
+    let address = null; // 逆ジオ結果 or 検索結果の住所
+    let chosen = null;  // 検索結果から選んだ場所(店名・ジャンル等の引き継ぎ用)
     let L = null, map = null, marker = null;
     let revTimer = null, revSeq = 0;
 
     const searchInput = h('input', {
-      class: 'input', type: 'search', placeholder: '住所・店名を入力', aria: { label: '住所・店名で検索' },
+      class: 'input', type: 'search', placeholder: '店名(+地名)や住所を入力', value: init.query || '', aria: { label: '住所・店名で検索' },
       attrs: { enterkeyhint: 'search', autocomplete: 'off' },
     });
     const searchBtn = h('button', { type: 'button', class: 'btn btn--secondary', text: '検索' });
@@ -62,8 +66,9 @@ export function openLocationPicker(init = {}) {
       hint.textContent = pos ? '地図をタップ、またはピンをドラッグして調整' : '地図をタップして位置を指定してください';
     }
 
-    function placeMarker(ll, { pan = false, zoom } = {}) {
+    function placeMarker(ll, { pan = false, zoom, knownAddress = null, place = null } = {}) {
       pos = { lat: ll.lat, lng: ll.lng };
+      chosen = place;
       if (!marker) {
         marker = L.marker([pos.lat, pos.lng], {
           draggable: true, autoPan: true, keyboard: true, title: '選択中の位置',
@@ -78,7 +83,13 @@ export function openLocationPicker(init = {}) {
       }
       if (pan) map.setView([pos.lat, pos.lng], zoom || Math.max(map.getZoom(), 16));
       updateFoot();
-      scheduleReverse();
+      if (knownAddress) {
+        clearTimeout(revTimer); revSeq += 1;
+        address = knownAddress;
+        addrEl.textContent = knownAddress;
+      } else {
+        scheduleReverse();
+      }
     }
 
     function scheduleReverse() {
@@ -111,28 +122,44 @@ export function openLocationPicker(init = {}) {
       add(results, h('p', { class: 'picker__msg', text: '検索中…' }));
       const started = Date.now();
       try {
-        let viewbox;
-        if (map) {
+        let viewbox, near;
+        if (map && map.getZoom() >= 10) {
           const b = map.getBounds();
           viewbox = `${b.getWest()},${b.getNorth()},${b.getEast()},${b.getSouth()}`;
+          const c = map.getCenter();
+          near = { lat: c.lat, lng: c.lng };
         }
-        const list = await searchPlaces(q, { viewbox });
+        const list = await searchPlaces(q, { viewbox, near: map && map.getZoom() >= 13 ? near : undefined, hotpepperKey: HOTPEPPER_API_KEY || '' });
         clear(results);
         if (!list.length) {
-          add(results, h('p', { class: 'picker__msg', text: '見つかりませんでした。別の言葉で検索するか、地図をタップして指定してください' }));
+          add(results, h('div', { class: 'picker__msg' },
+            h('p', { text: '見つかりませんでした。' }),
+            h('ul', { class: 'picker__tips' },
+              h('li', { text: '住所で検索すると確実です(食べログやGoogleマップの住所をコピーして貼り付け)' }),
+              h('li', { text: '店名は「店名 地名」(例:利久 国分町)のように短くすると見つかりやすくなります' }),
+              h('li', { text: '見つからない時は地図をタップしてピンを置けます' }))));
         } else {
           add(results, h('ul', { class: 'picker__list' }, list.map((r) => h('li', {},
             h('button', {
               type: 'button', class: 'picker__item',
               onClick: () => {
                 results.hidden = true;
-                if (map) placeMarker({ lat: r.lat, lng: r.lng }, { pan: true, zoom: 17 });
+                if (map) placeMarker({ lat: r.lat, lng: r.lng }, { pan: true, zoom: 18, knownAddress: r.address || null, place: r });
               },
             },
             h('span', { class: 'picker__item-main' },
-              h('span', { class: 'picker__item-name', text: r.name || r.address }),
-              h('span', { class: 'picker__item-addr', text: r.address })),
+              h('span', { class: 'picker__item-name' },
+                h('span', { class: `picker__kind picker__kind--${r.kind}`, text: KIND_LABEL[r.kind] || '' }),
+                h('span', { text: r.name || r.address })),
+              r.address && r.address !== r.name ? h('span', { class: 'picker__item-addr', text: r.address }) : null),
             icon('chevronRight', { size: 18 }))))));
+          if (list.some((r) => r.source === 'hotpepper')) {
+            add(results, h('p', { class: 'picker__credit' },
+              h('a', { href: 'http://webservice.recruit.co.jp/', target: '_blank', rel: 'noopener noreferrer', text: 'Powered by ホットペッパーグルメ Webサービス' })));
+          }
+          if (list.some((r) => r.source === 'gsi')) {
+            add(results, h('p', { class: 'picker__credit', text: '住所検索:国土地理院' }));
+          }
         }
       } catch (e) {
         console.error(e);
@@ -162,7 +189,7 @@ export function openLocationPicker(init = {}) {
 
     okBtn.addEventListener('click', () => {
       if (!pos) return;
-      result = { lat: pos.lat, lng: pos.lng, address };
+      result = { lat: pos.lat, lng: pos.lng, address, place: chosen };
       handle.close();
     });
 
@@ -182,6 +209,7 @@ export function openLocationPicker(init = {}) {
       }
       map.on('click', (e) => placeMarker(e.latlng));
       setTimeout(() => map && map.invalidateSize(), 60);
+      if (init.query && init.query.trim()) setTimeout(doSearch, 120);
     }).catch(() => {
       addrEl.textContent = '地図を読み込めませんでした。通信状況を確認してください';
     });

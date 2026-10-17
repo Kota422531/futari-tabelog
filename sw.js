@@ -7,7 +7,7 @@
 //   ・Firebase / Nominatim はキャッシュしない(素通し)
 //   ※ 静的ファイルを更新したら VERSION を上げること
 // =====================================================================
-const VERSION = 'v1.1.0';
+const VERSION = 'v1.2.0';
 const PREFIX = 'futari-tabelog-'; // 同一オリジンの他アプリ(家計簿・在庫)のキャッシュと区別
 const SHELL = `${PREFIX}shell-${VERSION}`;
 const LIBS = `${PREFIX}libs-v1`;

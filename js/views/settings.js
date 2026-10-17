@@ -8,7 +8,7 @@ import { toast, confirmDialog, copyText, canShare, shareUrl, setBusy } from '../
 import { buildShareUrl, extractGroupId, APP_VERSION, csvCell, ymd } from '../utils.js';
 import {
   LIMITS, isValidGroupId, CATEGORIES, TIMINGS, BUDGETS, SCENES, MOOD_TAGS, RESERVATION, PRIVATE_ROOM,
-  SMOKING, PARKING, CASHLESS, KIDS_OK, labelOf, labelsOf,
+  SMOKING, PARKING, CASHLESS, PAYMENTS, KIDS_OK, labelOf, labelsOf,
 } from '../schema.js';
 import { isDemoMode } from '../store.js';
 
@@ -26,7 +26,7 @@ const isoOrEmpty = (ms) => (typeof ms === 'number' ? new Date(ms).toISOString() 
 
 function toCsv(data) {
   const head = [
-    '店名', 'カテゴリ', 'ジャンル', 'エリア', '住所', '緯度', '経度', 'URL', '予約', '個室', '喫煙', '駐車場', 'カード・電子決済', '子連れ', 'その他共有事項',
+    '店名', 'カテゴリ', 'ジャンル', 'エリア', '住所', '緯度', '経度', 'URL', '予約', '個室', '喫煙', '駐車場', 'カード・電子決済', '支払い方法', '子連れ', 'その他共有事項',
     '店の登録者', '店の登録日時',
     '訪問日', 'タイミング', '人数', '予算', '実費', '利用シーン', '食べたメニュー', '味の感想', '賑やかさ', '雰囲気タグ', '雰囲気の感想', 'おすすめ度', '写真枚数', '訪問の登録者', '訪問の登録日時',
   ];
@@ -35,7 +35,7 @@ function toCsv(data) {
     const shopCols = [
       s.name, labelOf(CATEGORIES, s.category), s.genre, s.area, s.address, s.lat ?? '', s.lng ?? '', s.url,
       labelOf(RESERVATION, s.reservation), labelOf(PRIVATE_ROOM, s.privateRoom), labelOf(SMOKING, s.smoking),
-      labelOf(PARKING, s.parking), labelOf(CASHLESS, s.cashless), labelOf(KIDS_OK, s.kidsOk), s.note,
+      labelOf(PARKING, s.parking), labelOf(CASHLESS, s.cashless), labelsOf(PAYMENTS, s.payments), labelOf(KIDS_OK, s.kidsOk), s.note,
       s.createdBy, isoOrEmpty(s.createdAt),
     ];
     if (!s.visits.length) rows.push([...shopCols, ...Array(15).fill('')]);
