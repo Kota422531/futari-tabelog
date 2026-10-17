@@ -215,12 +215,16 @@ export function shopSection(initial, o) {
   }
 
   async function pick(focusSearch = false, query = '') {
+    const nameAtOpen = nameInput.value.trim();
     const r = await openLocationPicker({ lat: v.lat, lng: v.lng, focusSearch, query });
     if (!r) return;
-    setLocation(r.lat, r.lng, { address: r.address || null, fetch: false });
     const pl = r.place;
+    // 検索で選んだお店の住所を住所欄に入れる(自動入力扱い。手入力した住所は上書きしない)
+    setLocation(r.lat, r.lng, { address: r.address || null, fetch: false });
     if (pl && pl.kind === 'shop') {
-      if (!nameInput.value.trim() && pl.name) { nameInput.value = pl.name.slice(0, LIMITS.SHOP_NAME_MAX); checkDuplicates(); }
+      // 店名が空、または検索のために入れた言葉のままなら、選んだお店の正式名に置き換える
+      const cur = nameInput.value.trim();
+      if (pl.name && (!cur || cur === nameAtOpen)) { nameInput.value = pl.name.slice(0, LIMITS.SHOP_NAME_MAX); checkDuplicates(); }
       if (!genreInput.value.trim() && pl.genre) genreInput.value = pl.genre.slice(0, LIMITS.GENRE_MAX);
       if (!urlInput.value.trim() && pl.url && isHttpUrl(pl.url)) urlInput.value = pl.url.slice(0, LIMITS.URL_MAX);
       changed();
