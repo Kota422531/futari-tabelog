@@ -225,13 +225,13 @@ export function reverseGeocode(lat, lng) {
 
 // ---------------------------------------------------------------------
 // Leaflet(必要になった時に読み込む)
-//   1) 同梱版 ./vendor/leaflet/(同一オリジン。SW でオフラインでも使え、CDN/SRI に依存しない)
-//   2) 同梱版が無い・読めない場合のみ unpkg の CDN にフォールバック
+//   1) unpkg の CDN
+//   2) CDN に届かない場合は同梱版 ./vendor/leaflet/(tools/vendor-leaflet.sh で配置した時のみ)
 // ---------------------------------------------------------------------
 const LEAFLET_VER = '1.9.4';
 export const LEAFLET_SOURCES = Object.freeze([
-  new URL('../vendor/leaflet/', import.meta.url).href,
   `https://unpkg.com/leaflet@${LEAFLET_VER}/dist/`,
+  new URL('../vendor/leaflet/', import.meta.url).href,
 ]);
 let leafletPromise = null;
 
